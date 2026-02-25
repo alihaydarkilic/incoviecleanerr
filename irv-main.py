@@ -80,8 +80,14 @@ if "file_uploaded" not in st.session_state:
 
 if not st.session_state.file_uploaded:
     uploaded_file = st.file_uploader("PDF Yükleyin", type="pdf", key="main_uploader")
-    if uploaded_file:
-        st.session_state.pdf_bytes = uploaded_file.read()
+   if uploaded_file:
+    pdf_bytes = uploaded_file.read()
+    
+    doc_check = fitz.open(stream=pdf_bytes, filetype="pdf")
+    if len(doc_check) > 1:
+        st.error(f"❌ Yalnızca tek sayfalı PDF'ler desteklenmektedir. Yüklediğiniz dosya {len(doc_check)} sayfa içeriyor.")
+    else:
+        st.session_state.pdf_bytes = pdf_bytes
         st.session_state.file_name = uploaded_file.name
         st.session_state.file_uploaded = True
         st.rerun()
