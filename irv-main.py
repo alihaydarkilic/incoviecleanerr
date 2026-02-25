@@ -125,7 +125,7 @@ else:
         preview_img = display_img.copy()
         draw = ImageDraw.Draw(preview_img)
 
-        if canvas_result.json_data and "objects" in canvas_result.json_data:
+        if canvas_result and canvas_result.json_data and "objects" in canvas_result.json_data:
             for obj in canvas_result.json_data["objects"]:
                 l = obj["left"]
                 t = obj["top"]
