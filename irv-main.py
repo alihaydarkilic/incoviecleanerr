@@ -5,6 +5,7 @@ from PIL import Image, ImageDraw, ImageFont
 import io
 import os
 import base64
+import time
 
 
 st.set_page_config(
@@ -73,11 +74,62 @@ def pil_to_base64(img: Image.Image) -> str:
     return base64.b64encode(buffer.getvalue()).decode()
 
 
+# --- Session state başlangıç değerleri ---
 if "processed_pdf" not in st.session_state:
     st.session_state.processed_pdf = None
 if "file_uploaded" not in st.session_state:
     st.session_state.file_uploaded = False
+if "clearing" not in st.session_state:
+    st.session_state.clearing = False
+if "countdown" not in st.session_state:
+    st.session_state.countdown = 3
+if "clearing_reason" not in st.session_state:
+    st.session_state.clearing_reason = "download"  # "download" veya "cancel"
 
+
+# --- Temizleme sekansı (indirme veya iptal sonrası) ---
+if st.session_state.clearing:
+    remaining = st.session_state.countdown
+
+    if st.session_state.clearing_reason == "download":
+        st.success("✅ İşlem tamamlandı — dosya indirildi.")
+        detail_msg = "Yüklenen PDF ve işlenmiş dosya bellekten silindi."
+    else:
+        st.warning("🚫 İşlem iptal edildi.")
+        detail_msg = "İşlem iptal edildi. Yüklenen PDF bellekten silindi."
+
+    st.markdown(f"""
+        <div style="
+            background-color: #f0fff4;
+            border: 1px solid #68d391;
+            border-radius: 8px;
+            padding: 16px 20px;
+            margin: 12px 0;
+        ">
+            <p style="margin:0; font-size:15px;">
+                🔒 <b>Oturum verileri temizlendi.</b> {detail_msg}
+            </p>
+            <p style="margin:8px 0 0 0; color:#555; font-size:13px;">
+                ⏱️ <b>{remaining}</b> saniye içinde başa dönülüyor...
+            </p>
+        </div>
+    """, unsafe_allow_html=True)
+
+    st.progress((3 - remaining) / 3)
+
+    time.sleep(1)
+    st.session_state.countdown -= 1
+
+    if st.session_state.countdown <= 0:
+        st.session_state.clear()
+        st.rerun()
+    else:
+        st.rerun()
+
+    st.stop()
+
+
+# --- Ana akış ---
 if not st.session_state.file_uploaded:
     uploaded_file = st.file_uploader("PDF Yükleyin", type="pdf", key="main_uploader")
     if uploaded_file:
@@ -113,7 +165,6 @@ else:
     with left_col:
         st.subheader("✏️ Karartılacak Alanları Çizin")
 
-       
         canvas_result = st_canvas(
             fill_color="rgba(0, 150, 255, 0.2)",
             stroke_width=1,
@@ -131,7 +182,7 @@ else:
         preview_img = display_img.copy()
         draw = ImageDraw.Draw(preview_img)
 
-        if canvas_result and canvas_result.json_data and "objects" in canvas_result.json_data:
+        if canvas_result.json_data and "objects" in canvas_result.json_data:
             for obj in canvas_result.json_data["objects"]:
                 l = obj["left"]
                 t = obj["top"]
@@ -152,7 +203,11 @@ else:
 
     with btn_col1:
         if st.button("❌ İşlemi İptal Et", use_container_width=True):
-            st.session_state.clear()
+            for key in ["pdf_bytes", "processed_pdf", "file_uploaded", "file_name"]:
+                st.session_state.pop(key, None)
+            st.session_state.clearing = True
+            st.session_state.clearing_reason = "cancel"
+            st.session_state.countdown = 3
             st.rerun()
 
     with btn_col2:
@@ -187,9 +242,8 @@ else:
                                         align=1
                                     )
                                 else:
-                                    
                                     p.insert_textbox(
-                                        rect, "KVKK redacted",
+                                        rect, "KVKK gizlendi",
                                         fontsize=pdf_fsize,
                                         color=(1, 0, 0),
                                         align=1
@@ -210,5 +264,10 @@ else:
             mime="application/pdf",
             use_container_width=True
         ):
-            st.session_state.clear()
+            # Hassas veriyi hemen temizle, sonra sekansı başlat
+            for key in ["pdf_bytes", "processed_pdf", "file_uploaded", "file_name"]:
+                st.session_state.pop(key, None)
+            st.session_state.clearing = True
+            st.session_state.clearing_reason = "download"
+            st.session_state.countdown = 3
             st.rerun()
